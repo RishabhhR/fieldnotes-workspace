@@ -6,7 +6,7 @@ import {
   Archive, BookOpen, Check, ChevronDown, ChevronRight, CircleHelp,
   FileText, GripVertical, Heading1, Heading2, List, LoaderCircle,
   Menu, MoreHorizontal, PanelLeftClose, Plus, Quote, Search, Star,
-  Text, Trash2, X, Code2, SquareCheck, LogOut, Download,
+  Text, Trash2, X, Code2, SquareCheck, LogOut, Download, Moon, Sun,
 } from "lucide-react";
 import type { Block, BlockType, Page } from "../lib/workspace-db";
 
@@ -52,11 +52,33 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
   const [typeMenu, setTypeMenu] = useState<string | null>(null);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [theme, setTheme] = useState<"light" | "dark">("light");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const pending = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const blockRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+    setTheme(current);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const onSystemChange = () => {
+      try { if (window.localStorage.getItem("fieldnotes-theme")) return; } catch { return; }
+      const next = media.matches ? "dark" : "light";
+      document.documentElement.dataset.theme = next;
+      setTheme(next);
+    };
+    media.addEventListener("change", onSystemChange);
+    return () => media.removeEventListener("change", onSystemChange);
+  }, []);
+
+  function toggleTheme() {
+    const next = theme === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    setTheme(next);
+    try { window.localStorage.setItem("fieldnotes-theme", next); } catch { /* Theme still changes for this visit. */ }
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -207,7 +229,7 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
       </aside>
 
       <main className="main-panel">
-        <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open sidebar" onClick={() => setSidebarOpen(true)}><Menu size={19} /></button><span className="breadcrumb-workspace">My workspace</span><ChevronRight size={15} className="breadcrumb-arrow" /><span className="breadcrumb-current">{page?.title || "Untitled"}</span></div><div className="topbar-actions"><div className={`save-indicator ${saveState}`}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : saveState === "saved" ? <Check size={14} /> : <X size={14} />}{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved"}</div><button className="icon-button top-search" aria-label="Search" title="Search" onClick={() => { setSidebarOpen(true); setTimeout(() => searchRef.current?.focus(), 40); }}><Search size={18} /></button>{page && <button className={`icon-button ${page.favorite ? "is-favorite" : ""}`} aria-label={page.favorite ? "Remove favorite" : "Add favorite"} title={page.favorite ? "Remove favorite" : "Add favorite"} onClick={() => updatePageField({ favorite: !page.favorite })}><Star size={18} fill={page.favorite ? "currentColor" : "none"} /></button>}<div className="page-menu-wrap"><button className="icon-button" title="Page options" aria-label="Page options" onClick={() => setPageMenuOpen((open) => !open)}><MoreHorizontal size={20} /></button>{pageMenuOpen && page && <div className="page-menu"><button onClick={archivePage}><Archive size={16} /> Move to archive</button></div>}</div></div></header>
+        <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open sidebar" onClick={() => setSidebarOpen(true)}><Menu size={19} /></button><span className="breadcrumb-workspace">My workspace</span><ChevronRight size={15} className="breadcrumb-arrow" /><span className="breadcrumb-current">{page?.title || "Untitled"}</span></div><div className="topbar-actions"><div className={`save-indicator ${saveState}`}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : saveState === "saved" ? <Check size={14} /> : <X size={14} />}{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved"}</div><button className="icon-button top-search" aria-label="Search" title="Search" onClick={() => { setSidebarOpen(true); setTimeout(() => searchRef.current?.focus(), 40); }}><Search size={18} /></button><button className="icon-button theme-toggle" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} aria-pressed={theme === "dark"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button>{page && <button className={`icon-button ${page.favorite ? "is-favorite" : ""}`} aria-label={page.favorite ? "Remove favorite" : "Add favorite"} title={page.favorite ? "Remove favorite" : "Add favorite"} onClick={() => updatePageField({ favorite: !page.favorite })}><Star size={18} fill={page.favorite ? "currentColor" : "none"} /></button>}<div className="page-menu-wrap"><button className="icon-button" title="Page options" aria-label="Page options" onClick={() => setPageMenuOpen((open) => !open)}><MoreHorizontal size={20} /></button>{pageMenuOpen && page && <div className="page-menu"><button onClick={archivePage}><Archive size={16} /> Move to archive</button></div>}</div></div></header>
         {error && <div className="error-banner" role="alert"><span>{error === "storage_unconfigured" ? "Turso storage is being connected. Editing will be available once configuration is complete." : error === "storage_unavailable" ? "The database is unavailable right now. Please try again shortly." : error}</span><button aria-label="Dismiss error" onClick={() => setError(null)}><X size={16} /></button></div>}
         {loading ? <div className="loading-panel"><LoaderCircle size={24} className="spin" /><span>Opening your workspace...</span></div> : page ? <div className="document-wrap"><div className="document-content">
           <div className="document-eyebrow"><BookOpen size={14} /> PRIVATE PAGE <span>·</span> Edited {relativeTime(page.updatedAt)}</div>

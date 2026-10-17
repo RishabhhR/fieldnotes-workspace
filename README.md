@@ -1,6 +1,6 @@
 # Fieldnotes Workspace
 
-An original page-and-block writing app inspired by the workflow of modern note tools. It includes pages, block types, search, favorites, archive, and autosave. The web app runs on Next.js and Vercel, uses Clerk for sign-in, and stores each user's pages in Turso.
+An original page-and-block writing app inspired by the workflow of modern note tools. It includes pages, block types, search, favorites, archive, autosave, and a saved light/dark theme that follows the system preference until changed. The web app runs on Next.js and Vercel, uses Clerk for sign-in, and stores each user's pages in Turso.
 
 ## Web setup
 
