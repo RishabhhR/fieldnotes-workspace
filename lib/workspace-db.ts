@@ -1,5 +1,4 @@
 import { createClient, type Client } from "@libsql/client/web";
-import { env } from "cloudflare:workers";
 
 export type Page = {
   id: string;
@@ -35,8 +34,8 @@ let schemaReady: Promise<void> | null = null;
 
 export function getClient(): Client {
   if (client) return client;
-  const url = env.TURSO_DATABASE_URL || process.env.TURSO_DATABASE_URL;
-  const authToken = env.TURSO_AUTH_TOKEN || process.env.TURSO_AUTH_TOKEN;
+  const url = process.env.TURSO_DATABASE_URL;
+  const authToken = process.env.TURSO_AUTH_TOKEN;
   if (!url || !authToken) throw new Error("storage_unconfigured");
   client = createClient({ url, authToken });
   return client;

@@ -1,0 +1,10 @@
+desktop/
+outputs/
+dist/
+.sites-runtime/
+.openai/
+build/
+db/
+drizzle/
+examples/
+vendor/

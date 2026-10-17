@@ -52,9 +52,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
 .page-link-chevron { opacity: .5; }
 .no-pages { padding: 6px 12px; color: #a0aaa1; font-size: 12px; }
 .sidebar-footer { border-top: 1px solid #e7ebe4; padding-top: 14px; }
-.help-note, .sign-out { display: flex; align-items: center; gap: 10px; padding: 7px 9px; color: #9da69f; font-size: 11px; }
-.sign-out { text-decoration: none; border-radius: 6px; margin-top: 2px; }
-.sign-out:hover { color: var(--accent); background: #ecf1eb; }
+.help-note, .sign-out, .download-app { display: flex; align-items: center; gap: 10px; padding: 7px 9px; color: #9da69f; font-size: 11px; }
+.sign-out, .download-app { width: 100%; text-decoration: none; border: 0; background: transparent; border-radius: 6px; margin-top: 2px; text-align: left; cursor: pointer; }
+.sign-out:hover, .download-app:hover { color: var(--accent); background: #ecf1eb; }
+.download-app { color: #497158; font-weight: 650; }
 
 .main-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .topbar { height: 64px; display: flex; align-items: center; justify-content: space-between; padding: 0 31px; border-bottom: 1px solid #f0f1ee; gap: 16px; }
@@ -152,3 +153,23 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, a:focus-visib
   .page-title-input { font-size: 38px; }
   .editor-hint { margin-top: 55px; line-height: 1.8; }
 }
+
+.auth-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 32px 16px; background: #f7f8f4; }
+.auth-brand { color: #406853; font: bold 32px Georgia, serif; }
+.auth-brand span, .download-brand span, .download-icon span { color: #a6cfab; }
+.auth-brand strong { color: #24322e; font: 650 18px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; letter-spacing: -.04em; }
+.auth-download { color: #4a7055; font-size: 13px; text-decoration: none; }
+.auth-download:hover, .download-web:hover { text-decoration: underline; }
+.download-screen { min-height: 100vh; background: #f7f8f4; padding: 28px; }
+.download-brand { color: #406853; text-decoration: none; font: bold 22px Georgia, serif; }
+.download-card { width: min(100%, 530px); margin: min(12vh, 100px) auto 0; padding: 42px; border: 1px solid #e5eae3; border-radius: 20px; background: white; box-shadow: 0 25px 80px #27402b0a; }
+.download-icon { width: 70px; height: 70px; display: grid; place-items: center; border-radius: 18px; background: #406853; color: #fff; font: bold 48px Georgia, serif; line-height: 1; padding-bottom: 7px; }
+.download-kicker { margin: 32px 0 8px; color: #7b9681; font-size: 10px; font-weight: 700; letter-spacing: .14em; }
+.download-card h1 { margin: 0; color: #25392b; font-size: clamp(29px, 5vw, 39px); letter-spacing: -.05em; line-height: 1.1; }
+.download-card > p:not(.download-kicker) { color: #78877b; font-size: 14px; line-height: 1.65; }
+.download-primary { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; margin-top: 16px; padding: 0 20px; border-radius: 8px; background: #406853; color: white; font-size: 14px; font-weight: 700; text-decoration: none; }
+.download-primary:hover { background: #2e533c; }
+.download-card .download-detail { margin: 20px 0 26px; font-size: 11px !important; }
+.download-pending { margin-top: 28px; }
+.download-web { color: #406853; font-size: 13px; font-weight: 600; text-decoration: none; }
+@media (max-width: 600px) { .download-screen { padding: 20px; } .download-card { margin-top: 60px; padding: 28px; } }

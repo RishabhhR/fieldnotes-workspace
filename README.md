@@ -1,22 +1,25 @@
 # Fieldnotes Workspace
 
-An original, private web workspace inspired by the page-and-block workflow of Notion. This does not ship Notion code or use its service or account data. The first version supports pages, page icons, favorites, search across page titles and block text, autosaved blocks, block types, and archive.
+An original page-and-block writing app inspired by the workflow of modern note tools. It includes pages, block types, search, favorites, archive, and autosave. The web app runs on Next.js and Vercel, uses Clerk for sign-in, and stores each user's pages in Turso.
 
-## Stack
+## Web setup
 
-- Vinext/React on ChatGPT Sites, owner-private by default.
-- ChatGPT sign-in provided by Sites; every API request uses the authenticated Site user ID.
-- A dedicated Turso/libSQL database accessed from server routes only. The browser never receives the database URL or token.
-- `@libsql/client/web` is pinned to `0.15.15` for the Cloudflare Worker runtime.
+Use Node.js 22.13 or newer. Copy `.env.example` to an ignored `.env.local` and provide a dedicated Turso database URL and token plus a Clerk publishable key and secret key. Then run `npm install` and `npm run dev`.
 
-## Data
+The API gets the user ID from Clerk's verified server session. Browser requests cannot choose an owner ID. Turso credentials stay on the server. The first authenticated request creates the database tables and a welcome page.
 
-The server creates `pages` and `blocks` tables on first authenticated request. Every row has an `owner_id`; reads and writes include that ID. A new user gets one welcome page. Archive hides a page and its blocks from ordinary reads. The first version is single-user per Site account; it does not include team sharing, comments, uploaded files, or real-time collaboration.
+Deploy this directory as a Next.js project on Vercel with the same environment variables. `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL` controls the desktop download link and public `/download` page.
 
-Configure `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` as secret production environment variables in Sites. `.env.example` lists names only; no credentials belong in source. Use a dedicated Turso database for this app.
+Clerk production instances require a domain you own. Until a domain and production Clerk keys are configured, deployments using development keys are suitable for preview use only.
 
-## Local development
+## macOS app
 
-Use Node 22 or newer. Install dependencies, set ignored local `.env` values, and run the Vinext preview. Local sign-in is simulated by the Sites starter at `/signin-with-chatgpt?return_to=/`. The published Site uses real Sites authentication.
+`desktop/` contains a small Electron app that opens the hosted Fieldnotes web app in a dedicated window. It requires an internet connection and an Apple Silicon Mac. It does not store a second local copy of workspace data. Set `desktop/config.json` to the deployed URL and run `npm install && npm run build:mac` from that directory to create a DMG in `outputs/desktop/`.
 
-See the separate [reverse-engineering report](../reverse-engineering-lab/investigations/notion-macos-7.34.0/README.md) for evidence about the installed macOS app. That report informs product boundaries; this implementation is independently authored.
+The current DMG has an ad hoc signature. Public distribution without Gatekeeper warnings requires an Apple Developer ID Application certificate, a hardened runtime, notarization, and stapling. The available local Apple Development certificate is insufficient for direct public distribution.
+
+## Data boundary
+
+The earlier ChatGPT Site and this Clerk app use different user IDs. They can point at the same Turso database, but existing Site pages are not automatically reassigned to Clerk users. No data migration is performed without an explicit account mapping.
+
+This app does not contain Notion code or Notion account data. The first version has no team sharing, comments, uploads, offline editing, or real-time collaboration. The separate reverse-engineering report lives in `../reverse-engineering-lab/investigations/notion-macos-7.34.0/README.md` in the local workspace.

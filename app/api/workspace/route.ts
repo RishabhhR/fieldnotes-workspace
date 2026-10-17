@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { getChatGPTUser } from "../../chatgpt-auth";
+import { auth } from "@clerk/nextjs/server";
 import {
   ensureSchema,
   getClient,
@@ -35,8 +35,8 @@ function storageError(error: unknown) {
 }
 
 async function requireOwner() {
-  const user = await getChatGPTUser();
-  return user?.userId ?? null;
+  const { userId } = await auth();
+  return userId;
 }
 
 async function activePage(ownerId: string, pageId: string) {

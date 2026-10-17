@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SignOutButton } from "@clerk/nextjs";
 import {
   Archive, BookOpen, Check, ChevronDown, ChevronRight, CircleHelp,
   FileText, GripVertical, Heading1, Heading2, List, LoaderCircle,
   Menu, MoreHorizontal, PanelLeftClose, Plus, Quote, Search, Star,
-  Text, Trash2, X, Code2, SquareCheck, LogOut,
+  Text, Trash2, X, Code2, SquareCheck, LogOut, Download,
 } from "lucide-react";
 import type { Block, BlockType, Page } from "../lib/workspace-db";
 
@@ -43,7 +44,7 @@ function relativeTime(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-export default function WorkspaceApp({ userName, signOutPath }: { userName: string; signOutPath: string }) {
+export default function WorkspaceApp({ userName }: { userName: string }) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -202,7 +203,7 @@ export default function WorkspaceApp({ userName, signOutPath }: { userName: stri
           {filteredPages.map((item) => <PageLink key={item.id} page={item} active={item.id === activePageId} onClick={() => { setActivePageId(item.id); setSidebarOpen(false); }} />)}
           {filteredPages.length === 0 && <p className="no-pages">{query ? "No matching pages" : "Your pages will appear here"}</p>}
         </nav>
-        <div className="sidebar-footer"><div className="help-note"><CircleHelp size={17} /><span>Made for thinking out loud.</span></div><a href={signOutPath} target="_top" className="sign-out"><LogOut size={16} /> Sign out</a></div>
+        <div className="sidebar-footer"><div className="help-note"><CircleHelp size={17} /><span>Made for thinking out loud.</span></div>{process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL && <a className="download-app" href={process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer"><Download size={16} /> Download for macOS</a>}<SignOutButton redirectUrl="/sign-in"><button type="button" className="sign-out"><LogOut size={16} /> Sign out</button></SignOutButton></div>
       </aside>
 
       <main className="main-panel">
