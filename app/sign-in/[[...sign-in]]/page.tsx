@@ -5,7 +5,7 @@ export default function SignInPage() {
     <div className="auth-screen">
       <div className="auth-brand">f<span>.</span> <strong>fieldnotes</strong></div>
       <SignIn />
-      <a href="/download" className="auth-download">Get the macOS app</a>
+      <a href="/download" className="auth-download">Get the app (iOS, Android, Mac)</a>
     </div>
   );
 }

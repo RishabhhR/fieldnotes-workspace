@@ -8,7 +8,19 @@ Use Node.js 22.13 or newer. Copy `.env.example` to an ignored `.env.local` and p
 
 The API gets the user ID from Clerk's verified server session. Browser requests cannot choose an owner ID. Turso credentials stay on the server. The first authenticated request creates the database tables and a welcome page.
 
-Deploy this directory as a Next.js project on Vercel with the same environment variables. `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL` controls the desktop download link and public `/download` page.
+Deploy this directory as a Next.js project on Vercel with the same environment variables.
+- `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL`: macOS desktop DMG download URL.
+- `NEXT_PUBLIC_IOS_APP_STORE_URL`: (Optional) Apple App Store or TestFlight link.
+- `NEXT_PUBLIC_ANDROID_PLAY_STORE_URL`: (Optional) Google Play Store link.
+- `NEXT_PUBLIC_ANDROID_APK_URL`: (Optional) Direct Android APK download URL.
+
+## Mobile app (iOS & Android)
+
+Fieldnotes is fully configured as a Progressive Web App (PWA) with native mobile installation:
+- **iPhone & iPad (iOS)**: Users visiting in Safari can install Fieldnotes directly to their Home Screen via **Share → Add to Home Screen**. It opens fullscreen with standalone app windowing, saved theme, and no browser URL bars.
+- **Android**: Users visiting in Chrome or Edge can install Fieldnotes with 1 tap via the native install prompt or through **⋮ → Install app / Add to Home screen**.
+- **In-App Mobile Banner & Modal**: When accessing Fieldnotes on a phone, an unobtrusive banner and the "Get the app" sidebar option provide device-tailored installation steps and direct store/APK links if configured.
+- **Unified `/download` hub**: The `/download` page automatically detects the visitor's operating system (iOS, Android, or Mac) and provides device-specific installation guides and downloads.
 
 Clerk production instances require a domain you own. Until a domain and production Clerk keys are configured, deployments using development keys are suitable for preview use only.
 

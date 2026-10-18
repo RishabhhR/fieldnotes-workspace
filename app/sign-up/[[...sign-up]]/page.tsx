@@ -5,7 +5,7 @@ export default function SignUpPage() {
     <div className="auth-screen">
       <div className="auth-brand">f<span>.</span> <strong>fieldnotes</strong></div>
       <SignUp />
-      <a href="/download" className="auth-download">Get the macOS app</a>
+      <a href="/download" className="auth-download">Get the app (iOS, Android, Mac)</a>
     </div>
   );
 }

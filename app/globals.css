@@ -291,3 +291,82 @@ html[data-theme="dark"] .auth-screen,
 html[data-theme="dark"] .download-screen { background: var(--paper); }
 html[data-theme="dark"] .download-kicker { color: #a3c8aa; }
 html[data-theme="dark"] .download-icon { background: #406853; }
+
+/* Cross-platform Download and PWA Mobile Install */
+.download-card-wide { width: min(100%, 640px); }
+.download-header { display: flex; align-items: center; justify-content: space-between; width: min(100%, 640px); margin: 0 auto 12px; }
+.download-device-tabs { display: flex; gap: 8px; margin: 24px 0 20px; border-bottom: 1px solid #e7ebe4; padding-bottom: 8px; overflow-x: auto; }
+.device-tab-btn { display: flex; align-items: center; gap: 8px; padding: 9px 15px; border: 1px solid transparent; background: transparent; border-radius: 8px; font-size: 13px; font-weight: 650; color: #728276; transition: background .15s, color .15s; }
+.device-tab-btn:hover { color: #24322e; background: #eef3ec; }
+.device-tab-btn.active { color: #2e533c; background: #e3ece2; border-color: #d1ded0; }
+.platform-detail-box { display: flex; flex-direction: column; gap: 14px; text-align: left; }
+.platform-detail-box h2 { font-size: 19px; margin: 0; color: #25392b; font-weight: 700; letter-spacing: -.03em; }
+.platform-subtext { margin: 0; font-size: 13px; color: #78877b; line-height: 1.5; }
+.guide-steps { display: flex; flex-direction: column; gap: 10px; margin: 10px 0; }
+.guide-step { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; background: #f8faf7; border: 1px solid #e9eee7; border-radius: 10px; }
+.step-num { width: 28px; height: 28px; border-radius: 7px; background: #e2ede3; color: #355e44; display: grid; place-items: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.step-body { min-width: 0; flex: 1; }
+.step-body strong { display: block; font-size: 13px; color: #24322e; margin-bottom: 2px; }
+.step-body p { margin: 0; font-size: 12px; color: #6e7c72; line-height: 1.45; }
+.pwa-highlight-note { padding: 10px 14px; border-radius: 8px; background: #edf4ed; color: #3b6149; font-size: 12px; font-weight: 550; margin-top: 10px; border: 1px solid #d7e6d8; }
+.native-install-hero, .native-install-box { padding: 16px; background: #eef6ef; border: 1px solid #d4e7d5; border-radius: 12px; text-align: center; margin: 14px 0; }
+.native-install-hero p, .native-install-box p { margin: 0 0 12px; font-size: 13px; color: #35523f; font-weight: 550; }
+.install-action-btn { width: 100%; max-width: 280px; margin: 0 auto; gap: 8px; }
+.install-complete-banner { display: flex; align-items: center; gap: 10px; padding: 12px 16px; background: #e4f4e7; color: #2e6239; border-radius: 8px; font-size: 13px; font-weight: 600; margin: 12px 0; border: 1px solid #c7e6cc; }
+.download-btn-group, .external-download-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.download-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: 8px; background: #ebf0e9; color: #334d3b; font-size: 13px; font-weight: 650; text-decoration: none; border: 1px solid #d4ded3; }
+.download-secondary:hover { background: #e0e8dd; }
+.download-footer-links { margin-top: 28px; padding-top: 20px; border-top: 1px solid #e7ebe4; text-align: center; }
+
+/* Install Modal */
+.install-modal-overlay { position: fixed; inset: 0; z-index: 50; background: #14251b66; backdrop-filter: blur(4px); display: grid; place-items: center; padding: 16px; }
+.install-modal-card { width: min(100%, 520px); max-height: 90vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 20px 60px #1a33211f; padding: 24px; display: flex; flex-direction: column; }
+.install-modal-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.install-modal-title-group { display: flex; align-items: center; gap: 12px; }
+.install-modal-title-group h2 { margin: 0; font-size: 18px; font-weight: 750; color: var(--ink); letter-spacing: -.03em; }
+.install-modal-subtitle { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+.install-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 16px; overflow-x: auto; }
+.install-tab { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border: 1px solid transparent; background: transparent; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; transition: background .15s, color .15s; }
+.install-tab:hover { background: var(--surface-soft); color: var(--ink); }
+.install-tab.active { background: var(--accent-soft); color: var(--accent); border-color: var(--line); }
+.install-content { display: flex; flex-direction: column; }
+.guide-intro { margin-bottom: 12px; font-size: 13px; }
+.guide-intro strong { color: var(--ink); display: block; margin-bottom: 3px; }
+.guide-intro p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+/* Mobile In-App Banner */
+.mobile-install-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 14px; background: #eaf3ea; border-bottom: 1px solid #d5e5d6; color: #274834; font-size: 12px; }
+.mobile-install-info { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; font-weight: 550; }
+.mobile-install-icon { color: #3f684f; flex-shrink: 0; }
+.mobile-install-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.mobile-install-btn { border: 0; background: #406853; color: white; padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.mobile-install-btn:hover { background: #2e533c; }
+.mobile-install-close { border: 0; background: transparent; color: #647d6c; display: grid; place-items: center; padding: 4px; border-radius: 4px; cursor: pointer; }
+.mobile-install-close:hover { background: #d8e8da; color: #1e3b29; }
+
+/* Dark Mode Overrides for Download & PWA Components */
+html[data-theme="dark"] .download-device-tabs,
+html[data-theme="dark"] .download-footer-links { border-color: var(--line); }
+html[data-theme="dark"] .device-tab-btn { color: var(--muted); }
+html[data-theme="dark"] .device-tab-btn:hover { color: var(--ink); background: var(--surface-soft); }
+html[data-theme="dark"] .device-tab-btn.active { color: var(--accent); background: var(--accent-soft); border-color: var(--line); }
+html[data-theme="dark"] .platform-detail-box h2 { color: var(--ink); }
+html[data-theme="dark"] .platform-subtext { color: var(--muted); }
+html[data-theme="dark"] .guide-step { background: var(--surface-soft); border-color: var(--line); }
+html[data-theme="dark"] .step-num { background: #2d4533; color: #b7e3be; }
+html[data-theme="dark"] .step-body strong { color: var(--ink); }
+html[data-theme="dark"] .step-body p { color: var(--muted); }
+html[data-theme="dark"] .pwa-highlight-note { background: #213326; color: #c0e0c5; border-color: #314b38; }
+html[data-theme="dark"] .native-install-hero,
+html[data-theme="dark"] .native-install-box { background: #213326; border-color: #314b38; }
+html[data-theme="dark"] .native-install-hero p,
+html[data-theme="dark"] .native-install-box p { color: #bde0c4; }
+html[data-theme="dark"] .install-complete-banner { background: #213a27; color: #b5e4be; border-color: #33593b; }
+html[data-theme="dark"] .download-secondary { background: var(--surface-soft); color: var(--ink); border-color: var(--line); }
+html[data-theme="dark"] .download-secondary:hover { background: #314536; }
+html[data-theme="dark"] .mobile-install-banner { background: #1e2e22; border-bottom-color: #2e4734; color: #cbe6d0; }
+html[data-theme="dark"] .mobile-install-icon { color: #a7d3ad; }
+html[data-theme="dark"] .mobile-install-btn { background: #577d60; color: #fff; }
+html[data-theme="dark"] .mobile-install-btn:hover { background: #6d9975; }
+html[data-theme="dark"] .mobile-install-close { color: #a3c4a9; }
+html[data-theme="dark"] .mobile-install-close:hover { background: #2a3f30; color: #dff0e2; }

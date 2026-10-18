@@ -6,9 +6,11 @@ import {
   Archive, BookOpen, Check, ChevronDown, ChevronRight, CircleHelp,
   FileText, GripVertical, Heading1, Heading2, List, LoaderCircle,
   Menu, MoreHorizontal, PanelLeftClose, Plus, Quote, Search, Star,
-  Text, Trash2, X, Code2, SquareCheck, LogOut, Download, Moon, Sun,
+  Text, Trash2, X, Code2, SquareCheck, LogOut, Download, Moon, Sun, Smartphone,
 } from "lucide-react";
 import type { Block, BlockType, Page } from "../lib/workspace-db";
+import { usePWA } from "../lib/use-pwa";
+import { InstallModal } from "./install-modal";
 
 type Snapshot = { pages: Page[]; blocks: Block[] };
 type Action = Record<string, unknown> & { action: string };
@@ -52,16 +54,29 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
   const [typeMenu, setTypeMenu] = useState<string | null>(null);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
   const [saveState, setSaveState] = useState<SaveState>("saved");
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof document === "undefined") return "light";
+    return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const pending = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const blockRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const searchRef = useRef<HTMLInputElement>(null);
+  const { platform, isMobile, isStandalone, canInstallNative, promptInstall } = usePWA();
+  const [installModalOpen, setInstallModalOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("fieldnotes-pwa-banner-dismissed") === "true";
+    } catch {
+      return false;
+    }
+  });
+
+  const showMobileBanner = isMobile && !isStandalone && !bannerDismissed;
 
   useEffect(() => {
-    const current = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
-    setTheme(current);
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const onSystemChange = () => {
       try { if (window.localStorage.getItem("fieldnotes-theme")) return; } catch { return; }
@@ -225,10 +240,44 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
           {filteredPages.map((item) => <PageLink key={item.id} page={item} active={item.id === activePageId} onClick={() => { setActivePageId(item.id); setSidebarOpen(false); }} />)}
           {filteredPages.length === 0 && <p className="no-pages">{query ? "No matching pages" : "Your pages will appear here"}</p>}
         </nav>
-        <div className="sidebar-footer"><div className="help-note"><CircleHelp size={17} /><span>Made for thinking out loud.</span></div>{process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL && <a className="download-app" href={process.env.NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer"><Download size={16} /> Download for macOS</a>}<SignOutButton redirectUrl="/sign-in"><button type="button" className="sign-out"><LogOut size={16} /> Sign out</button></SignOutButton></div>
+        <div className="sidebar-footer"><div className="help-note"><CircleHelp size={17} /><span>Made for thinking out loud.</span></div><button type="button" className="download-app" onClick={() => setInstallModalOpen(true)}><Download size={16} /> {isMobile ? "Install on phone" : "Get the app (iOS, Android, Mac)"}</button><SignOutButton redirectUrl="/sign-in"><button type="button" className="sign-out"><LogOut size={16} /> Sign out</button></SignOutButton></div>
       </aside>
 
       <main className="main-panel">
+        {showMobileBanner && (
+          <aside className="mobile-install-banner" aria-label="Install app banner">
+            <div className="mobile-install-info">
+              <Smartphone size={16} className="mobile-install-icon" />
+              <span>Use Fieldnotes as a full-screen app on your phone</span>
+            </div>
+            <div className="mobile-install-actions">
+              <button
+                type="button"
+                className="mobile-install-btn"
+                onClick={() => {
+                  if (platform === "android" && canInstallNative) {
+                    void promptInstall();
+                  } else {
+                    setInstallModalOpen(true);
+                  }
+                }}
+              >
+                {platform === "android" && canInstallNative ? "Install" : "Get App"}
+              </button>
+              <button
+                type="button"
+                className="mobile-install-close"
+                aria-label="Dismiss banner"
+                onClick={() => {
+                  setBannerDismissed(true);
+                  try { window.localStorage.setItem("fieldnotes-pwa-banner-dismissed", "true"); } catch {}
+                }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+          </aside>
+        )}
         <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open sidebar" onClick={() => setSidebarOpen(true)}><Menu size={19} /></button><span className="breadcrumb-workspace">My workspace</span><ChevronRight size={15} className="breadcrumb-arrow" /><span className="breadcrumb-current">{page?.title || "Untitled"}</span></div><div className="topbar-actions"><div className={`save-indicator ${saveState}`}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : saveState === "saved" ? <Check size={14} /> : <X size={14} />}{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved"}</div><button className="icon-button top-search" aria-label="Search" title="Search" onClick={() => { setSidebarOpen(true); setTimeout(() => searchRef.current?.focus(), 40); }}><Search size={18} /></button><button className="icon-button theme-toggle" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} aria-pressed={theme === "dark"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button>{page && <button className={`icon-button ${page.favorite ? "is-favorite" : ""}`} aria-label={page.favorite ? "Remove favorite" : "Add favorite"} title={page.favorite ? "Remove favorite" : "Add favorite"} onClick={() => updatePageField({ favorite: !page.favorite })}><Star size={18} fill={page.favorite ? "currentColor" : "none"} /></button>}<div className="page-menu-wrap"><button className="icon-button" title="Page options" aria-label="Page options" onClick={() => setPageMenuOpen((open) => !open)}><MoreHorizontal size={20} /></button>{pageMenuOpen && page && <div className="page-menu"><button onClick={archivePage}><Archive size={16} /> Move to archive</button></div>}</div></div></header>
         {error && <div className="error-banner" role="alert"><span>{error === "storage_unconfigured" ? "Turso storage is being connected. Editing will be available once configuration is complete." : error === "storage_unavailable" ? "The database is unavailable right now. Please try again shortly." : error}</span><button aria-label="Dismiss error" onClick={() => setError(null)}><X size={16} /></button></div>}
         {loading ? <div className="loading-panel"><LoaderCircle size={24} className="spin" /><span>Opening your workspace...</span></div> : page ? <div className="document-wrap"><div className="document-content">
@@ -247,6 +296,7 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
           <div className="editor-hint">Press <kbd>Enter</kbd> for a new block · <kbd>Shift</kbd> + <kbd>Enter</kbd> for a line break</div>
         </div></div> : <div className="empty-document"><div className="empty-glyph"><FileText size={28} /></div><h1>Your workspace is ready</h1><p>Create a page to start collecting ideas, plans, and notes.</p><button onClick={createPage}><Plus size={17} /> Create a page</button></div>}
       </main>
+      <InstallModal isOpen={installModalOpen} onClose={() => setInstallModalOpen(false)} />
     </div>
   );
 }
