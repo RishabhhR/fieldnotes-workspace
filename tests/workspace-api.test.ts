@@ -213,10 +213,46 @@ describe("blocks", () => {
     const page = (await load(ALICE)).body.pages.find((item) => item.id === pageId);
     expect(page?.updatedAt.startsWith("2000")).toBe(false);
   });
+  it("respaces the page when a gap is exhausted, and tells the client the new positions", async () => {
+    const { pageId, blockId } = await newPage(ALICE);
+    await act(ALICE, { action: "updateBlock", blockId, text: "start" });
+    const end = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "end" });
+    await db.raw.execute({ sql: "UPDATE blocks SET position = ? WHERE id = ?", args: [1000 + 1e-7, end.body.block.id] });
+    const created = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "middle" });
+    expect(created.body.renumbered).toEqual([{ id: blockId, position: 1000 }, { id: end.body.block.id, position: 2000 }]);
+    expect(await orderOf(ALICE, pageId)).toEqual(["start", "middle", "end"]);
+    const normal = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "next" });
+    expect(normal.body.renumbered).toBeUndefined(); // the normal path stays cheap
+  });
 
-  // KNOWN BUG: each insert halves the gap, so after 52 inserts floating-point positions collide and order breaks on
-  // reload. it.fails turns the suite red once this is fixed: then change it to it.
-  it.fails("KNOWN BUG: keeps order when many blocks are inserted one after another in the same gap", async () => {
+  it("heals blocks that already collided: new text goes right after the block it follows", async () => {
+    const { pageId, blockId } = await newPage(ALICE);
+    await act(ALICE, { action: "updateBlock", blockId, text: "first" });
+    const tied = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "second" });
+    await db.raw.execute({ sql: "UPDATE blocks SET position = 1000, created_at = '2000-01-01T00:00:00.000Z' WHERE id = ?", args: [blockId] });
+    await db.raw.execute({ sql: "UPDATE blocks SET position = 1000 WHERE id = ?", args: [tied.body.block.id] });
+    await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "inserted" });
+    expect(await orderOf(ALICE, pageId)).toEqual(["first", "inserted", "second"]);
+  });
+
+  it("respacing touches only this user's blocks on this page", async () => {
+    const page = await newPage(ALICE);
+    const other = await newPage(ALICE, "other page");
+    const bob = await newPage(BOB, "bob page");
+    const end = await act(ALICE, { action: "createBlock", pageId: page.pageId, afterId: page.blockId, text: "end" });
+    await db.raw.execute({ sql: "UPDATE blocks SET position = ? WHERE id = ?", args: [1000 + 1e-7, end.body.block.id] });
+    await db.raw.batch([
+      { sql: "UPDATE blocks SET position = 777 WHERE id = ?", args: [other.blockId] },
+      { sql: "UPDATE blocks SET position = 888 WHERE id = ?", args: [bob.blockId] },
+    ], "write");
+    const created = await act(ALICE, { action: "createBlock", pageId: page.pageId, afterId: page.blockId, text: "x" });
+    expect(created.body.renumbered.map((item: { id: string }) => item.id).sort()).toEqual([page.blockId, end.body.block.id].sort());
+    const positions = async (id: string) => (await db.raw.execute({ sql: "SELECT position FROM blocks WHERE id = ?", args: [id] })).rows[0].position;
+    expect(await positions(other.blockId)).toBe(777);
+    expect(await positions(bob.blockId)).toBe(888);
+  });
+
+  it("keeps order when many blocks are inserted one after another in the same gap", async () => {
     const { pageId, blockId } = await newPage(ALICE);
     await act(ALICE, { action: "updateBlock", blockId, text: "start" });
     await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "end" });

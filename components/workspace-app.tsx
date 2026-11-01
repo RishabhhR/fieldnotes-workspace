@@ -9,12 +9,11 @@ import {
   Text, Trash2, X, Code2, SquareCheck, LogOut, Download, Moon, Sun, Smartphone,
 } from "lucide-react";
 import type { Block, BlockType, Page } from "../lib/workspace-db";
+import { createSaveQueue, type SaveAction, type SaveState } from "../lib/save-queue";
 import { usePWA } from "../lib/use-pwa";
 import { InstallModal } from "./install-modal";
 
 type Snapshot = { pages: Page[]; blocks: Block[] };
-type Action = Record<string, unknown> & { action: string };
-type SaveState = "saved" | "saving" | "error";
 
 const blockOptions: Array<{ type: BlockType; label: string; icon: typeof Text }> = [
   { type: "paragraph", label: "Text", icon: Text },
@@ -27,11 +26,15 @@ const blockOptions: Array<{ type: BlockType; label: string; icon: typeof Text }>
 ];
 const icons = ["📄", "✦", "💡", "📚", "🌱", "📝", "🎯", "🗂️", "✨"];
 
-async function apiAction<T>(input: Action): Promise<T> {
+// The server will never accept these, so retrying a save that got one would loop forever.
+const PERMANENT_SAVE_ERRORS = new Set(["not_found", "invalid_request", "no_changes"]);
+
+async function apiAction<T>(input: SaveAction, options: { keepalive?: boolean } = {}): Promise<T> {
   const response = await fetch("/api/workspace", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
+    keepalive: options.keepalive,
   });
   const result = await response.json() as T & { error?: string };
   if (!response.ok) throw new Error(result.error || "Could not save changes");
@@ -53,14 +56,14 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [typeMenu, setTypeMenu] = useState<string | null>(null);
   const [pageMenuOpen, setPageMenuOpen] = useState(false);
-  const [saveState, setSaveState] = useState<SaveState>("saved");
+  const [queueState, setQueueState] = useState<SaveState>("saved");
+  const [operationState, setOperationState] = useState<"idle" | "saving" | "error">("idle");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof document === "undefined") return "light";
     return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   });
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const pending = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const blockRefs = useRef<Map<string, HTMLTextAreaElement>>(new Map());
   const searchRef = useRef<HTMLInputElement>(null);
   const { platform, isMobile, isStandalone, canInstallNative, promptInstall } = usePWA();
@@ -118,23 +121,42 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
     if (activePageId) window.localStorage.setItem("fieldnotes-active-page", activePageId);
   }, [activePageId]);
 
-  const markError = useCallback((cause: unknown) => {
-    setSaveState("error");
+  const showError = useCallback((cause: unknown) => {
     setError(cause instanceof Error ? cause.message : "Your changes could not be saved");
   }, []);
+  const markError = useCallback((cause: unknown) => {
+    setOperationState("error");
+    showError(cause);
+  }, [showError]);
 
-  const queueSave = useCallback((key: string, action: Action) => {
-    const existing = pending.current.get(key);
-    if (existing) clearTimeout(existing);
-    setSaveState("saving");
-    pending.current.set(key, setTimeout(async () => {
-      pending.current.delete(key);
-      try {
-        await apiAction(action);
-        if (pending.current.size === 0) setSaveState("saved");
-      } catch (cause) { markError(cause); }
-    }, 650));
-  }, [markError]);
+  const [saves] = useState(() => createSaveQueue({
+    send: (action, options) => apiAction(action, options),
+    onStateChange: (next, previous) => {
+      if (previous === "error" && next === "saved") setError(null); // everything that failed has now been stored
+      setQueueState(next);
+    },
+    onFailure: showError,
+    onSaved: () => setOperationState((current) => current === "error" ? "idle" : current),
+    isPermanentFailure: (cause) => cause instanceof Error && PERMANENT_SAVE_ERRORS.has(cause.message),
+  }));
+  const saveState: SaveState = queueState === "error" || operationState === "error"
+    ? "error"
+    : queueState === "saving" || operationState === "saving" ? "saving" : "saved";
+
+  useEffect(() => {
+    const flushBeforeLeaving = () => saves.flush(true);
+    const flushWhenHidden = () => { if (document.visibilityState === "hidden") saves.flush(true); };
+    const retryNow = () => saves.flush();
+    window.addEventListener("pagehide", flushBeforeLeaving);
+    document.addEventListener("visibilitychange", flushWhenHidden);
+    window.addEventListener("online", retryNow);
+    return () => {
+      window.removeEventListener("pagehide", flushBeforeLeaving);
+      document.removeEventListener("visibilitychange", flushWhenHidden);
+      window.removeEventListener("online", retryNow);
+      saves.dispose();
+    };
+  }, [saves]);
 
   const page = snapshot?.pages.find((item) => item.id === activePageId) ?? null;
   const blocks = useMemo(
@@ -153,12 +175,12 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
 
   async function createPage() {
     try {
-      setSaveState("saving");
+      setOperationState("saving");
       const created = await apiAction<{ page: Page; block: Block }>({ action: "createPage" });
       setSnapshot((current) => current && ({ pages: [created.page, ...current.pages], blocks: [...current.blocks, created.block] }));
       setActivePageId(created.page.id);
       setSidebarOpen(false);
-      setSaveState("saved");
+      setOperationState("idle");
       setError(null);
     } catch (cause) { markError(cause); }
   }
@@ -166,7 +188,7 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
   function renamePage(title: string) {
     if (!page) return;
     setSnapshot((current) => current && ({ ...current, pages: current.pages.map((item) => item.id === page.id ? { ...item, title } : item) }));
-    queueSave(`page:${page.id}:title`, { action: "updatePage", pageId: page.id, title });
+    saves.enqueue(`page:${page.id}:title`, { action: "updatePage", pageId: page.id, title });
   }
 
   async function updatePageField(input: { icon?: string; favorite?: boolean }) {
@@ -180,7 +202,12 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
   async function archivePage() {
     if (!page || !window.confirm(`Move “${page.title || "Untitled"}” to archive?`)) return;
     try {
+      // Store what was just typed first; afterwards nothing may be sent to the archived page.
+      saves.flush();
+      await saves.idle();
       await apiAction({ action: "archivePage", pageId: page.id });
+      saves.cancel(`page:${page.id}:title`);
+      for (const block of blocks) saves.cancel(`block:${block.id}`);
       const remaining = snapshot?.pages.filter((item) => item.id !== page.id) ?? [];
       setSnapshot((current) => current && ({ pages: remaining, blocks: current.blocks.filter((block) => block.pageId !== page.id) }));
       setActivePageId(remaining[0]?.id ?? null);
@@ -190,25 +217,30 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
 
   function updateBlockLocal(blockId: string, patch: Partial<Block>, persist = true) {
     setSnapshot((current) => current && ({ ...current, blocks: current.blocks.map((block) => block.id === blockId ? { ...block, ...patch } : block) }));
-    if (persist) queueSave(`block:${blockId}`, { action: "updateBlock", blockId, ...patch });
+    if (persist) saves.enqueue(`block:${blockId}`, { action: "updateBlock", blockId, ...patch });
   }
 
   async function createBlock(afterId: string | null, text = "", type: BlockType = "paragraph") {
     if (!page) return;
     try {
-      const created = await apiAction<{ block: Block }>({ action: "createBlock", pageId: page.id, afterId, text, type });
-      setSnapshot((current) => current && ({ ...current, blocks: [...current.blocks, created.block] }));
+      const created = await apiAction<{ block: Block; renumbered?: Array<{ id: string; position: number }> }>({ action: "createBlock", pageId: page.id, afterId, text, type });
+      const moved = new Map(created.renumbered?.map((item) => [item.id, item.position]));
+      setSnapshot((current) => current && ({ ...current, blocks: [...current.blocks.map((block) => moved.has(block.id) ? { ...block, position: moved.get(block.id)! } : block), created.block] }));
       requestAnimationFrame(() => blockRefs.current.get(created.block.id)?.focus());
     } catch (cause) { markError(cause); }
   }
 
   async function deleteBlock(blockId: string, focusId?: string) {
     if (blocks.length <= 1) return;
+    const unsaved = saves.cancel(`block:${blockId}`);
     try {
       await apiAction({ action: "deleteBlock", blockId });
       setSnapshot((current) => current && ({ ...current, blocks: current.blocks.filter((block) => block.id !== blockId) }));
       if (focusId) requestAnimationFrame(() => blockRefs.current.get(focusId)?.focus());
-    } catch (cause) { markError(cause); }
+    } catch (cause) {
+      if (unsaved) saves.enqueue(`block:${blockId}`, unsaved); // the block still exists, so its edits still matter
+      markError(cause);
+    }
   }
 
   function onBlockKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>, block: Block, index: number) {
@@ -279,7 +311,7 @@ export default function WorkspaceApp({ userName }: { userName: string }) {
           </aside>
         )}
         <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu" aria-label="Open sidebar" onClick={() => setSidebarOpen(true)}><Menu size={19} /></button><span className="breadcrumb-workspace">My workspace</span><ChevronRight size={15} className="breadcrumb-arrow" /><span className="breadcrumb-current">{page?.title || "Untitled"}</span></div><div className="topbar-actions"><div className={`save-indicator ${saveState}`}>{saveState === "saving" ? <LoaderCircle size={14} className="spin" /> : saveState === "saved" ? <Check size={14} /> : <X size={14} />}{saveState === "saving" ? "Saving" : saveState === "saved" ? "Saved" : "Not saved"}</div><button className="icon-button top-search" aria-label="Search" title="Search" onClick={() => { setSidebarOpen(true); setTimeout(() => searchRef.current?.focus(), 40); }}><Search size={18} /></button><button className="icon-button theme-toggle" type="button" aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"} title={theme === "dark" ? "Light mode" : "Dark mode"} aria-pressed={theme === "dark"} onClick={toggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button>{page && <button className={`icon-button ${page.favorite ? "is-favorite" : ""}`} aria-label={page.favorite ? "Remove favorite" : "Add favorite"} title={page.favorite ? "Remove favorite" : "Add favorite"} onClick={() => updatePageField({ favorite: !page.favorite })}><Star size={18} fill={page.favorite ? "currentColor" : "none"} /></button>}<div className="page-menu-wrap"><button className="icon-button" title="Page options" aria-label="Page options" onClick={() => setPageMenuOpen((open) => !open)}><MoreHorizontal size={20} /></button>{pageMenuOpen && page && <div className="page-menu"><button onClick={archivePage}><Archive size={16} /> Move to archive</button></div>}</div></div></header>
-        {error && <div className="error-banner" role="alert"><span>{error === "storage_unconfigured" ? "Turso storage is being connected. Editing will be available once configuration is complete." : error === "storage_unavailable" ? "The database is unavailable right now. Please try again shortly." : error}</span><button aria-label="Dismiss error" onClick={() => setError(null)}><X size={16} /></button></div>}
+        {error && <div className="error-banner" role="alert"><span>{error === "storage_unconfigured" ? "Turso storage is being connected. Editing will be available once configuration is complete." : error === "storage_unavailable" ? "The database is unavailable right now. Please try again shortly." : error}</span><button aria-label="Dismiss error" onClick={() => { setError(null); setOperationState("idle"); saves.dismissRejected(); }}><X size={16} /></button></div>}
         {loading ? <div className="loading-panel"><LoaderCircle size={24} className="spin" /><span>Opening your workspace...</span></div> : page ? <div className="document-wrap"><div className="document-content">
           <div className="document-eyebrow"><BookOpen size={14} /> PRIVATE PAGE <span>·</span> Edited {relativeTime(page.updatedAt)}</div>
           <div className="page-icon-wrap"><button className="page-icon" title="Change page icon" aria-label="Change page icon" onClick={() => { const index = icons.indexOf(page.icon); void updatePageField({ icon: icons[(index + 1) % icons.length] }); }}>{page.icon}</button><span>Click to change icon</span></div>

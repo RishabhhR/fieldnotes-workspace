@@ -42,7 +42,7 @@ The tests run the real API route handlers and real SQL against a throwaway local
 
 Covered: signed-out rejection, owner isolation across every action, request validation, page and block CRUD, archive, storage errors, autosave and its failure states, keyboard editing, search, favorites and theme persistence.
 
-**Known bugs** are pinned with `it.fails`, named `KNOWN BUG`. Fixing one turns the suite red until `it.fails` becomes `it`.
+When a bug can't be fixed right away, pin it with `it.fails`, named `KNOWN BUG`: fixing it turns the suite red until `it.fails` becomes `it`.
 
 **Not covered**, because it cannot be tested safely or meaningfully here: real Clerk session verification and `proxy.ts` route protection (the session is faked); Turso's network behavior (a local SQLite file stands in for it); visual layout and CSS; real-browser behavior, including the PWA install flow and `/download`; and the Electron app.
 

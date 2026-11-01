@@ -16,6 +16,7 @@ const db = setupTestDatabase();
 type Action = { action: string; [key: string]: unknown };
 const blockedFetch = globalThis.fetch;
 let actions: Action[] = [];
+let keepalives: Array<boolean | undefined> = [];
 let shouldFail: (action: Action) => boolean = () => false;
 let systemDark = false;
 let systemListeners: Array<() => void> = [];
@@ -25,6 +26,7 @@ function connectFetchToRoute() {
     if (init?.method === "POST") {
       const action = JSON.parse(String(init.body)) as Action;
       actions.push(action);
+      keepalives.push(init.keepalive);
       if (shouldFail(action)) return new Response(JSON.stringify({ error: "storage_unavailable" }), { status: 503 });
       return POST(new Request("http://test.local/api/workspace", init));
     }
@@ -33,7 +35,7 @@ function connectFetchToRoute() {
 }
 
 beforeEach(() => {
-  actions = []; shouldFail = () => false; systemDark = false; systemListeners = [];
+  actions = []; keepalives = []; shouldFail = () => false; systemDark = false; systemListeners = [];
   session.userId = ALICE;
   window.localStorage.clear();
   delete document.documentElement.dataset.theme;
@@ -141,9 +143,8 @@ describe("autosave", () => {
     expect((await stored(blockId)).text).toBe("precious text");
   });
 
-  // ---- KNOWN BUGS. Each test states the behavior a user needs and currently fails, which it.fails expects.
-  // Fixing a bug makes its test "unexpectedly pass" and turns the suite red: then change it.fails to it. ----
-  it.fails("KNOWN BUG: ticking a to-do right after typing must not lose the typed text", async () => {
+  // Regressions found by this suite (TASK-053): each of these used to lose text or misreport it.
+  it("ticking a to-do right after typing must not lose the typed text", async () => {
     const { pageId } = await newPage(ALICE, "Todos");
     const todo = await act(ALICE, { action: "createBlock", pageId, type: "todo", text: "" });
     window.localStorage.setItem("fieldnotes-active-page", pageId);
@@ -157,7 +158,7 @@ describe("autosave", () => {
     expect(row.text).toBe("buy milk");
   });
 
-  it.fails("KNOWN BUG: emptying a block and pressing Backspace again must not report a save error", async () => {
+  it("emptying a block and pressing Backspace again must not report a save error", async () => {
     const { pageId, blockId } = await newPage(ALICE);
     const second = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "x" });
     const { user } = await openApp();
@@ -170,7 +171,7 @@ describe("autosave", () => {
     expect(saveState()).toBe("Saved");
   });
 
-  it.fails("KNOWN BUG: one block failing to save must not be reported as Saved because another block succeeded", async () => {
+  it("one block failing to save must not be reported as Saved because another block succeeded", async () => {
     const { pageId, blockId } = await newPage(ALICE, "Two blocks");
     const second = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "" });
     window.localStorage.setItem("fieldnotes-active-page", pageId);
@@ -183,6 +184,108 @@ describe("autosave", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect((await stored(blockId)).text).toBe(""); // really not saved...
     expect(saveState()).toBe("Not saved"); // ...so the indicator must not claim otherwise
+  });
+});
+
+describe("saves that must survive", () => {
+  it("closing the tab sends pending edits at once, in a request that outlives the page", async () => {
+    const { user, blockId } = await openPage();
+    await user.type(textareas()[0], "last words");
+    expect(updates()).toHaveLength(0);
+    window.dispatchEvent(new Event("pagehide"));
+    expect(updates("text")).toEqual([expect.objectContaining({ text: "last words" })]);
+    expect(keepalives.at(-1)).toBe(true);
+    await waitForSaved();
+    expect((await stored(blockId)).text).toBe("last words");
+  });
+
+  it("hiding the tab also sends pending edits", async () => {
+    const { user } = await openPage();
+    await user.type(textareas()[0], "backgrounded on a phone");
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(updates("text")).toHaveLength(1);
+    visibility.mockRestore();
+    await waitForSaved();
+  });
+
+  it("a failed save retries by itself, and the error clears once the text is stored", async () => {
+    const { user, blockId } = await openPage();
+    shouldFail = (action) => action.action === "updateBlock";
+    await user.type(textareas()[0], "keep trying");
+    await waitFor(() => expect(saveState()).toBe("Not saved"), { timeout: 3000 });
+    expect(screen.getByRole("alert")).toBeTruthy();
+    shouldFail = () => false;
+    await waitFor(() => expect(saveState()).toBe("Saved"), { timeout: 5000 }); // no further typing
+    expect((await stored(blockId)).text).toBe("keep trying");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("coming back online retries straight away", async () => {
+    const { user, blockId } = await openPage();
+    shouldFail = (action) => action.action === "updateBlock";
+    await user.type(textareas()[0], "offline note");
+    await waitFor(() => expect(saveState()).toBe("Not saved"), { timeout: 3000 });
+    shouldFail = () => false;
+    window.dispatchEvent(new Event("online"));
+    await waitFor(() => expect(saveState()).toBe("Saved"), { timeout: 1000 }); // well before the 3 s retry
+    expect((await stored(blockId)).text).toBe("offline note");
+  });
+
+  it("archiving right after typing stores the text first and reports no false error", async () => {
+    await newPage(ALICE, "Keep");
+    const gone = await newPage(ALICE, "Gone");
+    window.localStorage.setItem("fieldnotes-active-page", gone.pageId);
+    const { user } = await openApp();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    await user.type(textareas()[0], "final thought");
+    await user.click(screen.getByRole("button", { name: "Page options" }));
+    await user.click(screen.getByRole("button", { name: /Move to archive/ }));
+    await waitFor(() => expect((screen.getByRole("textbox", { name: "Page title" }) as HTMLInputElement).value).toBe("Keep"));
+    expect((await stored(gone.blockId)).text).toBe("final thought");
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(saveState()).toBe("Saved");
+  });
+
+  it("if deleting a block fails, its unsaved edits are still stored", async () => {
+    const { pageId, blockId } = await newPage(ALICE);
+    const second = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "" });
+    const { user } = await openApp();
+    await user.type(textareas()[1], "do not lose me");
+    shouldFail = (action) => action.action === "deleteBlock";
+    await user.click(screen.getAllByRole("button", { name: "Block type" })[1]);
+    await user.click(screen.getByRole("button", { name: /Delete block/ }));
+    await screen.findByRole("alert");
+    expect(textareas()).toHaveLength(2);
+    await waitFor(async () => expect((await stored(second.body.block.id)).text).toBe("do not lose me"), { timeout: 3000 });
+  });
+
+  it("a save the server refuses is not retried forever, and stays reported until dismissed", async () => {
+    const { user, pageId } = await openPage();
+    await user.type(textareas()[0], "typed while archived elsewhere");
+    await act(ALICE, { action: "archivePage", pageId }); // another device archives the page
+    session.userId = ALICE;
+    await waitFor(() => expect(saveState()).toBe("Not saved"), { timeout: 3000 });
+    const attempts = updates().length;
+    await new Promise((resolve) => setTimeout(resolve, 3300));
+    expect(updates()).toHaveLength(attempts);
+    expect(saveState()).toBe("Not saved");
+    await user.click(screen.getByRole("button", { name: "Dismiss error" }));
+    expect(saveState()).toBe("Saved");
+  });
+
+  it("when a page runs out of room, new blocks appear in the right place without a reload", async () => {
+    const { pageId, blockId } = await newPage(ALICE);
+    await act(ALICE, { action: "updateBlock", blockId, text: "start" });
+    const end = await act(ALICE, { action: "createBlock", pageId, afterId: blockId, text: "end" });
+    await db.raw.execute({ sql: "UPDATE blocks SET position = ? WHERE id = ?", args: [1000 + 1e-7, end.body.block.id] });
+    const { user } = await openApp();
+    await user.click(textareas()[0]);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(textareas()).toHaveLength(3));
+    expect(textareas().map((el) => el.value)).toEqual(["start", "", "end"]);
+    expect((await load(ALICE)).body.blocks.map((block) => block.text)).toEqual(["start", "", "end"]);
   });
 });
 
