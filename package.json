@@ -9,7 +9,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ignore-pattern .next"
+    "lint": "eslint . --ignore-pattern .next",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:types": "tsc -p tests/tsconfig.json"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.9.17",
@@ -22,13 +25,18 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",
+    "@testing-library/dom": "^10.4.2",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.8",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "eslint": "9.39.4",
     "eslint-config-next": "16.3.4",
+    "jsdom": "^30.1.3",
     "tailwindcss": "4.2.1",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vitest": "^5.0.5"
   },
   "type": "module"
 }

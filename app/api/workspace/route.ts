@@ -25,6 +25,9 @@ const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("deleteBlock"), blockId: z.string().uuid() }),
 ]);
 
+// Inserting halves a gap, so repeated inserts in one spot eventually exhaust floating-point precision.
+const MIN_POSITION_GAP = 1e-6;
+
 function jsonError(message: string, status: number) {
   return NextResponse.json({ error: message }, { status });
 }
@@ -130,20 +133,33 @@ export async function POST(request: Request) {
     if (input.action === "createBlock") {
       if (!await activePage(ownerId, input.pageId)) return jsonError("not_found", 404);
       let position = 1000;
+      let renumbered: Array<{ id: string; position: number }> | undefined;
       if (input.afterId) {
         const previous = await db.execute({ sql: "SELECT position FROM blocks WHERE id = ? AND page_id = ? AND owner_id = ?", args: [input.afterId, input.pageId, ownerId] });
         if (!previous.rows[0]) return jsonError("not_found", 404);
         const priorPosition = Number(previous.rows[0].position);
         const next = await db.execute({ sql: "SELECT position FROM blocks WHERE page_id = ? AND owner_id = ? AND position > ? ORDER BY position LIMIT 1", args: [input.pageId, ownerId, priorPosition] });
-        position = next.rows[0] ? (priorPosition + Number(next.rows[0].position)) / 2 : priorPosition + 1000;
+        const nextPosition = next.rows[0] ? Number(next.rows[0].position) : null;
+        const tied = await db.execute({ sql: "SELECT COUNT(*) AS n FROM blocks WHERE page_id = ? AND owner_id = ? AND position = ? AND id != ?", args: [input.pageId, ownerId, priorPosition, input.afterId] });
+        if (Number(tied.rows[0].n) > 0 || (nextPosition !== null && nextPosition - priorPosition < MIN_POSITION_GAP)) {
+          // No room left, or an earlier collision: respace the page in its current visible order.
+          const ordered = await db.execute({ sql: "SELECT id FROM blocks WHERE page_id = ? AND owner_id = ? ORDER BY position, created_at", args: [input.pageId, ownerId] });
+          renumbered = ordered.rows.map((row, index) => ({ id: String(row.id), position: (index + 1) * 1000 }));
+          position = renumbered.find((item) => item.id === input.afterId)!.position + 500;
+        } else {
+          position = nextPosition !== null ? (priorPosition + nextPosition) / 2 : priorPosition + 1000;
+        }
       } else {
         const first = await db.execute({ sql: "SELECT MIN(position) AS position FROM blocks WHERE page_id = ? AND owner_id = ?", args: [input.pageId, ownerId] });
         position = first.rows[0]?.position == null ? 1000 : Number(first.rows[0].position) - 1000;
       }
       const block: Block = { id: crypto.randomUUID(), pageId: input.pageId, type: input.type ?? "paragraph", text: input.text ?? "", checked: false, position, createdAt: timestamp, updatedAt: timestamp };
-      await db.execute({ sql: "INSERT INTO blocks(id, page_id, owner_id, type, text, checked, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [block.id, block.pageId, ownerId, block.type, block.text, 0, position, timestamp, timestamp] });
-      await db.execute({ sql: "UPDATE pages SET updated_at = ? WHERE id = ? AND owner_id = ?", args: [timestamp, input.pageId, ownerId] });
-      return NextResponse.json({ block });
+      await db.batch([
+        ...(renumbered ?? []).map((item) => ({ sql: "UPDATE blocks SET position = ? WHERE id = ? AND page_id = ? AND owner_id = ?", args: [item.position, item.id, input.pageId, ownerId] })),
+        { sql: "INSERT INTO blocks(id, page_id, owner_id, type, text, checked, position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", args: [block.id, block.pageId, ownerId, block.type, block.text, 0, position, timestamp, timestamp] },
+        { sql: "UPDATE pages SET updated_at = ? WHERE id = ? AND owner_id = ?", args: [timestamp, input.pageId, ownerId] },
+      ], "write");
+      return NextResponse.json(renumbered ? { block, renumbered } : { block });
     }
 
     if (input.action === "updateBlock") {
