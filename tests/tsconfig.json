@@ -1,0 +1,6 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": { "incremental": false, "noEmit": true, "plugins": [] },
+  "include": ["./**/*.ts", "./**/*.tsx", "../vitest.config.ts", "../next-env.d.ts"],
+  "exclude": []
+}
